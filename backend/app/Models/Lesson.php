@@ -22,4 +22,14 @@ class Lesson extends Model
     {
         return $this->hasMany(Material::class);
     }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(Assignment::class);
+    }
+
+    public function quizzes(): HasMany
+    {
+        return $this->hasMany(Quiz::class);
+    }
 }
