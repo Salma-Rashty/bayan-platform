@@ -36,7 +36,7 @@ class SubmissionPolicy
      *
      * Note: this governs plain edits (e.g. correcting submitted content). Setting
      * grade/feedback is a separate ability gated by the `grade-homework` permission,
-     * checked directly on the Filament "Grade" action rather than through this method.
+     * checked in GradeSubmissionRequest rather than through this method.
      */
     public function update(User $user, Submission $submission): bool
     {
