@@ -13,8 +13,10 @@ use App\Models\QuestionOption;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\Submission;
+use App\Models\Tag;
 use App\Models\TeacherApplication;
 use App\Models\User;
+use App\Models\UserNote;
 use App\Policies\AssignmentPolicy;
 use App\Policies\CourseApplicationPolicy;
 use App\Policies\CoursePolicy;
@@ -26,7 +28,9 @@ use App\Policies\QuestionPolicy;
 use App\Policies\QuizAttemptPolicy;
 use App\Policies\QuizPolicy;
 use App\Policies\SubmissionPolicy;
+use App\Policies\TagPolicy;
 use App\Policies\TeacherApplicationPolicy;
+use App\Policies\UserNotePolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Gate;
@@ -49,7 +53,14 @@ class AppServiceProvider extends ServiceProvider
     {
         JsonResource::withoutWrapping();
 
-        Gate::before(function ($user, string $ability) {
+        Gate::before(function ($user, string $ability, array $arguments) {
+            // UserPolicy handles super-admins itself so its self-protection rules
+            // (e.g. no suspending or deleting your own account) apply to them too.
+            $subject = $arguments[0] ?? null;
+            if ($subject instanceof User || $subject === User::class) {
+                return null;
+            }
+
             return $user->hasRole('super-admin') ? true : null;
         });
 
@@ -66,5 +77,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(QuestionOption::class, QuestionOptionPolicy::class);
         Gate::policy(QuizAttempt::class, QuizAttemptPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
+        Gate::policy(UserNote::class, UserNotePolicy::class);
+        Gate::policy(Tag::class, TagPolicy::class);
     }
 }

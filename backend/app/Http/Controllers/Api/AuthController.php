@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
@@ -39,6 +40,13 @@ class AuthController extends Controller
                 'email' => ['The provided credentials are incorrect.'],
             ]);
         }
+
+        // Checked only after the password, so the response doesn't reveal account status to guessers.
+        if ($user->isSuspended()) {
+            abort(403, EnsureUserIsActive::SUSPENDED_MESSAGE);
+        }
+
+        $user->forceFill(['last_login_at' => now()])->save();
 
         return response()->json([
             'user' => new UserResource($user),

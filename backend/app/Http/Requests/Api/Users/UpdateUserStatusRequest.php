@@ -3,12 +3,16 @@
 namespace App\Http\Requests\Api\Users;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
-class AssignPermissionRequest extends FormRequest
+class UpdateUserStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('update', $this->route('user'));
+        Gate::authorize('suspend', $this->route('user'));
+
+        return true;
     }
 
     /**
@@ -17,7 +21,7 @@ class AssignPermissionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'permission' => ['required', 'string', 'exists:permissions,name'],
+            'status' => ['required', Rule::in(['active', 'suspended'])],
         ];
     }
 }

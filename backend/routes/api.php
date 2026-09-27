@@ -12,8 +12,10 @@ use App\Http\Controllers\Api\QuestionController;
 use App\Http\Controllers\Api\QuestionOptionController;
 use App\Http\Controllers\Api\QuizController;
 use App\Http\Controllers\Api\SubmissionController;
+use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TeacherApplicationController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\UserNoteController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:6,1');
@@ -21,7 +23,7 @@ Route::post('/auth/login', [AuthController::class, 'login'])->middleware('thrott
 
 Route::post('/teacher-applications', [TeacherApplicationController::class, 'store'])->middleware('throttle:6,1');
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'me']);
 
@@ -105,17 +107,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/options/{option}', [QuestionOptionController::class, 'destroy']);
     Route::patch('/options/{option}/restore', [QuestionOptionController::class, 'restore'])->withTrashed();
 
-    // Users (manage-users)
+    // Users (manage-users; admin-tier accounts are super-admin only — see UserPolicy)
     Route::get('/users', [UserController::class, 'index']);
-    Route::get('/users/{user}', [UserController::class, 'show']);
+    Route::get('/users/{user}', [UserController::class, 'show'])->withTrashed();
     Route::post('/users', [UserController::class, 'store']);
     Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update']);
+    Route::patch('/users/{user}/status', [UserController::class, 'updateStatus']);
+    Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword']);
     Route::delete('/users/{user}', [UserController::class, 'destroy']);
     Route::patch('/users/{user}/restore', [UserController::class, 'restore'])->withTrashed();
-    Route::post('/users/{user}/roles', [UserController::class, 'assignRole']);
-    Route::delete('/users/{user}/roles/{role}', [UserController::class, 'revokeRole']);
-    Route::post('/users/{user}/permissions', [UserController::class, 'assignPermission']);
-    Route::delete('/users/{user}/permissions/{permission}', [UserController::class, 'revokePermission']);
+
+    // Admin-only notes on a user
+    Route::post('/users/{user}/notes', [UserNoteController::class, 'store'])->withTrashed();
+    Route::delete('/notes/{note}', [UserNoteController::class, 'destroy']);
+
+    // Tags (for the user tag selector)
+    Route::get('/tags', [TagController::class, 'index']);
+    Route::post('/tags', [TagController::class, 'store']);
 });
 
 Route::get('/ping', function () {

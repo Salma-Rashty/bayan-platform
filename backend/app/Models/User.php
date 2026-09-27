@@ -15,12 +15,21 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'phone', 'country', 'status', 'last_login_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes;
+
+    /**
+     * Mirrors the column default so new instances have a status before being refreshed.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => 'active',
+    ];
 
     public function taughtCourses(): BelongsToMany
     {
@@ -37,6 +46,29 @@ class User extends Authenticatable
         return $this->hasMany(Enrollment::class);
     }
 
+    public function notes(): HasMany
+    {
+        return $this->hasMany(UserNote::class)->latest();
+    }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'user_tag');
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->status === 'suspended';
+    }
+
+    /**
+     * Admin-tier accounts can only be modified by a super-admin (see UserPolicy).
+     */
+    public function isAdminTier(): bool
+    {
+        return $this->hasAnyRole(['super-admin', 'admin']);
+    }
+
     public function isEnrolledIn(int $courseId): bool
     {
         return $this->enrollments()->where('course_id', $courseId)->where('status', 'active')->exists();
@@ -51,6 +83,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_login_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
