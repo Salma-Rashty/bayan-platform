@@ -1,4 +1,7 @@
-export type Role = "super-admin" | "admin" | "teacher" | "student";
+/** Roles the code depends on; they can't be renamed or deleted. */
+export type SystemRole = "super-admin" | "admin" | "teacher" | "student";
+/** Any role name: super-admins can create custom roles at runtime. `string & {}` keeps autocomplete. */
+export type Role = SystemRole | (string & {});
 
 /** Roles that get the teacher-facing screens (the API treats all three as staff). */
 export const STAFF_ROLES: Role[] = ["super-admin", "admin", "teacher"];
@@ -6,16 +9,21 @@ export const STAFF_ROLES: Role[] = ["super-admin", "admin", "teacher"];
 /** Roles that get the /admin screens. */
 export const ADMIN_ROLES: Role[] = ["super-admin", "admin"];
 
-export type Permission =
+/** Permissions the code checks (see AccessCatalog on the API). */
+export type SystemPermission =
   | "manage-users"
   | "edit-curriculum"
   | "create-lessons"
   | "grade-homework"
   | "manage-billing"
   | "view-reports";
+/** Any permission name. Permissions are defined in code; this stays open so a new one needn't break types. */
+export type Permission = SystemPermission | (string & {});
 
-// TODO(api): there's no endpoint listing the available roles/permissions, so these mirror
-// RolesAndPermissionsSeeder. Replace with a fetched list once one exists (e.g. GET /roles).
+/**
+ * The seeded roles/permissions, mirroring RolesAndPermissionsSeeder. Only a fallback: the user
+ * screens load the live lists (including custom ones) from GET /users/access-options.
+ */
 export const ALL_ROLES: Role[] = ["super-admin", "admin", "teacher", "student"];
 export const ALL_PERMISSIONS: Permission[] = [
   "manage-users",
@@ -26,15 +34,89 @@ export const ALL_PERMISSIONS: Permission[] = [
   "view-reports",
 ];
 
+/** A role as managed on /admin/roles (GET /roles). */
+export interface AccessRole {
+  id: number;
+  name: Role;
+  /** System roles can't be renamed or deleted. */
+  is_system: boolean;
+  /** super-admin: always has every permission; nothing about it can be edited. */
+  is_locked: boolean;
+  permissions: Permission[];
+  permissions_count: number;
+  /** Non-deleted users holding the role. */
+  users_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Display metadata for a permission (from AccessCatalog on the API). */
+export interface PermissionInfo {
+  name: Permission;
+  label: string;
+  group: string;
+  description: string | null;
+  /** False when no feature checks this permission yet, so granting it does nothing. */
+  wired: boolean;
+}
+
+/** A permission from GET /permissions (read-only; permissions are defined in code). */
+export interface AccessPermission extends PermissionInfo {
+  id: number;
+}
+
+/** GET /users/access-options: what the user screens can assign. */
+export interface AccessOptions {
+  roles: Role[];
+  permissions: PermissionInfo[];
+  /** Roles bundling an elevated permission; only a super-admin may grant or remove them. */
+  elevated_roles: Role[];
+}
+
+export type UserStatus = "active" | "suspended";
+
 export interface User {
   id: number;
   name: string;
   email: string;
+  phone?: string | null;
+  country?: string | null;
+  status?: UserStatus;
   roles: Role[];
   /** Effective permissions: direct grants and those inherited from roles, merged. */
   permissions?: Permission[];
+  /** Permissions granted to the user directly (not through a role). */
+  direct_permissions?: Permission[];
+  /** Present on the /users endpoints. */
+  tags?: Tag[];
+  /** Only on GET /users/{id} and the user write endpoints. */
+  enrollments?: Enrollment[];
+  /** Only on GET /users/{id} and the user write endpoints; newest first. */
+  notes?: UserNote[];
+  last_login_at?: string | null;
   created_at?: string;
+  updated_at?: string;
   deleted_at?: string | null;
+}
+
+export interface Tag {
+  id: number;
+  name: string;
+  /** Hex colour, e.g. "#3b82f6". */
+  color: string | null;
+  /** Only on GET /tags. */
+  users_count?: number;
+}
+
+/** An internal note an admin wrote about a user. */
+export interface UserNote {
+  id: number;
+  user_id: number;
+  author_id: number;
+  author?: { id: number; name: string } | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AuthResponse {

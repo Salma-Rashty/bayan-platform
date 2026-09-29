@@ -6,7 +6,7 @@ import { ArrowRightIcon } from "lucide-react";
 import { PageHeader } from "@/components/admin/admin-ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ADMIN_SECTIONS } from "@/lib/admin-sections";
+import { useAdminSections } from "@/lib/admin-sections";
 import { useAuth } from "@/lib/auth-context";
 import type { Course, CourseApplication, Paginated, TeacherApplication, User } from "@/lib/types";
 import { useAllPages } from "@/lib/use-all-pages";
@@ -101,7 +101,7 @@ export default function AdminDashboardPage() {
   const { hasPermission } = useAuth();
   const canManageUsers = hasPermission("manage-users");
   const canEditCurriculum = hasPermission("edit-curriculum");
-  const sections = ADMIN_SECTIONS.filter((section) => hasPermission(section.permission));
+  const sections = useAdminSections();
 
   return (
     <div className="flex flex-col gap-8">

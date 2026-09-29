@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
 import { api, ApiError } from "@/lib/api";
 
 interface UseApiGetResult<T> {
   data: T | null;
+  /** Lets callers apply a mutation's response in place, without refetching. */
+  setData: Dispatch<SetStateAction<T | null>>;
   loading: boolean;
   error: string | null;
   /** HTTP status of the last error, if any (e.g. to special-case a 403). */
@@ -57,5 +59,5 @@ export function useApiGet<T>(path: string): UseApiGetResult<T> {
     };
   }, [path, reloadKey]);
 
-  return { data, loading, error, errorStatus, reload };
+  return { data, setData, loading, error, errorStatus, reload };
 }

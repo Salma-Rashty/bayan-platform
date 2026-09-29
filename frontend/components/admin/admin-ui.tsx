@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
-import type { Permission } from "@/lib/types";
+import type { Permission, Role } from "@/lib/types";
 
 /** Renders children only for users holding `permission`, mirroring the API policy. */
 export function RequirePermission({ permission, children }: { permission: Permission; children: ReactNode }) {
@@ -19,6 +19,22 @@ export function RequirePermission({ permission, children }: { permission: Permis
       <Alert variant="destructive">
         <AlertTitle>You don&apos;t have access to this section</AlertTitle>
         <AlertDescription>It requires the {permission} permission.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+/** Renders children only for users holding `role`, mirroring the API policy. */
+export function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
+  const { hasRole } = useAuth();
+
+  if (!hasRole(role)) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>You don&apos;t have access to this section</AlertTitle>
+        <AlertDescription>It&apos;s only available to the {role} role.</AlertDescription>
       </Alert>
     );
   }

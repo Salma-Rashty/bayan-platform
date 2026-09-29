@@ -23,10 +23,12 @@ use App\Policies\CoursePolicy;
 use App\Policies\EnrollmentPolicy;
 use App\Policies\LessonPolicy;
 use App\Policies\MaterialPolicy;
+use App\Policies\PermissionPolicy;
 use App\Policies\QuestionOptionPolicy;
 use App\Policies\QuestionPolicy;
 use App\Policies\QuizAttemptPolicy;
 use App\Policies\QuizPolicy;
+use App\Policies\RolePolicy;
 use App\Policies\SubmissionPolicy;
 use App\Policies\TagPolicy;
 use App\Policies\TeacherApplicationPolicy;
@@ -35,6 +37,8 @@ use App\Policies\UserPolicy;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -79,5 +83,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(UserNote::class, UserNotePolicy::class);
         Gate::policy(Tag::class, TagPolicy::class);
+        Gate::policy(Role::class, RolePolicy::class);
+        Gate::policy(Permission::class, PermissionPolicy::class);
     }
 }

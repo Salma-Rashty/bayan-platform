@@ -8,9 +8,11 @@ use App\Http\Controllers\Api\EnrollmentController;
 use App\Http\Controllers\Api\LessonController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\MyController;
+use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\QuestionController;
 use App\Http\Controllers\Api\QuestionOptionController;
 use App\Http\Controllers\Api\QuizController;
+use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SubmissionController;
 use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TeacherApplicationController;
@@ -109,6 +111,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     // Users (manage-users; admin-tier accounts are super-admin only — see UserPolicy)
     Route::get('/users', [UserController::class, 'index']);
+    Route::get('/users/access-options', [UserController::class, 'accessOptions']);
     Route::get('/users/{user}', [UserController::class, 'show'])->withTrashed();
     Route::post('/users', [UserController::class, 'store']);
     Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update']);
@@ -124,6 +127,15 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     // Tags (for the user tag selector)
     Route::get('/tags', [TagController::class, 'index']);
     Route::post('/tags', [TagController::class, 'store']);
+
+    // Roles & permissions (super-admin only)
+    Route::get('/roles', [RoleController::class, 'index']);
+    Route::get('/roles/{role}', [RoleController::class, 'show']);
+    Route::post('/roles', [RoleController::class, 'store']);
+    Route::match(['put', 'patch'], '/roles/{role}', [RoleController::class, 'update']);
+    Route::delete('/roles/{role}', [RoleController::class, 'destroy']);
+    // Read-only: permissions are defined in code, never created from the UI.
+    Route::get('/permissions', [PermissionController::class, 'index']);
 });
 
 Route::get('/ping', function () {

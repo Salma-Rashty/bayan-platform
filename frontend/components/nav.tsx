@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDownIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { ADMIN_SECTIONS } from "@/lib/admin-sections";
+import { useAdminNav } from "@/lib/admin-sections";
 import { useAuth } from "@/lib/auth-context";
 import { ADMIN_ROLES, STAFF_ROLES } from "@/lib/types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,6 +17,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -31,7 +34,8 @@ function initialsFor(name: string): string {
 }
 
 export function Nav() {
-  const { user, loading, logout, hasRole, hasAnyRole, hasPermission } = useAuth();
+  const { user, loading, logout, hasRole, hasAnyRole } = useAuth();
+  const adminNav = useAdminNav();
   const router = useRouter();
 
   async function handleLogout() {
@@ -79,11 +83,24 @@ export function Nav() {
                 <DropdownMenuContent align="end" className="w-52">
                   <DropdownMenuItem render={<Link href="/admin" />}>Overview</DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  {ADMIN_SECTIONS.filter((section) => hasPermission(section.permission)).map((section) => (
-                    <DropdownMenuItem key={section.href} render={<Link href={section.href} />}>
-                      {section.label}
-                    </DropdownMenuItem>
-                  ))}
+                  {adminNav.map((entry) =>
+                    entry.kind === "group" ? (
+                      <DropdownMenuSub key={entry.label}>
+                        <DropdownMenuSubTrigger>{entry.label}</DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          {entry.sections.map((section) => (
+                            <DropdownMenuItem key={section.href} render={<Link href={section.href} />}>
+                              {section.label}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    ) : (
+                      <DropdownMenuItem key={entry.section.href} render={<Link href={entry.section.href} />}>
+                        {entry.section.label}
+                      </DropdownMenuItem>
+                    )
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

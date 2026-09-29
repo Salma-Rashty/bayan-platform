@@ -10,12 +10,16 @@ use App\Http\Requests\Api\Users\UpdateUserRequest;
 use App\Http\Requests\Api\Users\UpdateUserStatusRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Policies\UserPolicy;
+use App\Support\AccessCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\PersonalAccessToken;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
@@ -46,6 +50,31 @@ class UserController extends Controller
         return UserResource::collection(
             $query->paginate($filters['per_page'] ?? 15)->withQueryString()
         );
+    }
+
+    /**
+     * The roles and permissions that can be assigned to users, for the user forms and filters.
+     * Read-only and open to anyone managing users; editing them is super-admin only (/roles).
+     */
+    public function accessOptions(): JsonResponse
+    {
+        Gate::authorize('viewAny', User::class);
+
+        $roles = Role::pluck('name')
+            ->sortBy(fn (string $name) => AccessCatalog::roleSortKey($name))
+            ->values();
+
+        $permissions = Permission::pluck('name')
+            ->sortBy(fn (string $name) => AccessCatalog::permissionSortKey($name))
+            ->map(fn (string $name) => ['name' => $name, ...AccessCatalog::describePermission($name)])
+            ->values();
+
+        return response()->json([
+            'roles' => $roles,
+            'permissions' => $permissions,
+            // Roles only a super-admin may grant or remove (see UserPolicy::assignRoles).
+            'elevated_roles' => UserPolicy::rolesGrantingElevatedPermissions(),
+        ]);
     }
 
     public function show(User $user): UserResource

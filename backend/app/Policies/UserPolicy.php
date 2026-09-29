@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
+use Spatie\Permission\Models\Role;
 
 /**
  * Handles super-admins itself (they are exempt from the global Gate::before bypass for
@@ -119,8 +120,20 @@ class UserPolicy
             return Response::deny('You cannot change your own roles.');
         }
 
-        if (array_intersect($changed, self::ADMIN_TIER_ROLES) && ! $user->hasRole('super-admin')) {
+        if ($user->hasRole('super-admin')) {
+            return Response::allow();
+        }
+
+        if (array_intersect($changed, self::ADMIN_TIER_ROLES)) {
             return Response::deny('Only a super-admin can grant or remove the admin and super-admin roles.');
+        }
+
+        // A custom role bundling an elevated permission would otherwise be a way around assignPermissions().
+        $elevated = self::rolesGrantingElevatedPermissions($changed);
+
+        if ($elevated !== []) {
+            return Response::deny('Only a super-admin can grant or remove roles that include '
+                .implode(' or ', self::ELEVATED_PERMISSIONS).': '.implode(', ', $elevated).'.');
         }
 
         return Response::allow();
@@ -156,6 +169,22 @@ class UserPolicy
         }
 
         return Response::allow();
+    }
+
+    /**
+     * Which of the given roles (or all roles, when null) include an elevated permission.
+     *
+     * @param  array<int, string>|null  $roles
+     * @return array<int, string>
+     */
+    public static function rolesGrantingElevatedPermissions(?array $roles = null): array
+    {
+        return Role::query()
+            ->when($roles !== null, fn ($query) => $query->whereIn('name', $roles))
+            ->whereHas('permissions', fn ($query) => $query->whereIn('name', self::ELEVATED_PERMISSIONS))
+            ->orderBy('name')
+            ->pluck('name')
+            ->all();
     }
 
     private function canManageUsers(User $user): bool
