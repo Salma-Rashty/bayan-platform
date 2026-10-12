@@ -1,12 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import { FilterTabs } from "@/components/admin/admin-ui";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { api, ApiError } from "@/lib/api";
 import { pluralize } from "@/lib/role-rules";
-import type { Category } from "@/lib/types";
+import type { Category, Level } from "@/lib/types";
 
 export type TrashedFilter = "current" | "only" | "with";
 
@@ -18,18 +30,89 @@ export const TRASHED_OPTIONS: { value: TrashedFilter; label: string }[] = [
 
 export type ActiveFilter = "all" | "active" | "inactive";
 
-export function matchesActive(item: { is_active: boolean }, filter: ActiveFilter): boolean {
-  return filter === "all" ? true : filter === "active" ? item.is_active : !item.is_active;
+/** Whether an item counts as active for filtering. Levels use the effective state (see Level). */
+type IsActive<T> = (item: T) => boolean;
+
+const ownActive = (item: { is_active: boolean }) => item.is_active;
+
+export function matchesActive<T extends { is_active: boolean }>(
+  item: T,
+  filter: ActiveFilter,
+  isActive: IsActive<T> = ownActive
+): boolean {
+  return filter === "all" ? true : filter === "active" ? isActive(item) : !isActive(item);
 }
 
 /** Filter tab options with counts, for a list already narrowed by search. */
-export function activeFilterOptions(items: { is_active: boolean }[]) {
-  const active = items.filter((item) => item.is_active).length;
+export function activeFilterOptions<T extends { is_active: boolean }>(items: T[], isActive: IsActive<T> = ownActive) {
+  const active = items.filter(isActive).length;
   return [
     { value: "all" as const, label: "All", count: items.length },
     { value: "active" as const, label: "Active", count: active },
     { value: "inactive" as const, label: "Inactive", count: items.length - active },
   ];
+}
+
+/**
+ * The two catalog list filters: existence (Current/Deleted/All, sent to the API as `trashed`)
+ * and status (All/Active/Inactive, applied to the loaded list). Status only applies to
+ * current records, so switching existence away from Current resets it to All.
+ */
+export function useCatalogFilters() {
+  const [trashed, setTrashedState] = useState<TrashedFilter>("current");
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
+
+  function setTrashed(value: TrashedFilter) {
+    setTrashedState(value);
+    if (value !== "current") setActiveFilter("all");
+  }
+
+  return { trashed, setTrashed, activeFilter, setActiveFilter, statusApplies: trashed === "current" };
+}
+
+function FilterSegment({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 py-1 pr-1 pl-2.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** The existence and status filters as two labeled segments; Status is hidden unless showing current records. */
+export function CatalogFilters({
+  filters,
+  noun,
+  statusOptions,
+}: {
+  filters: ReturnType<typeof useCatalogFilters>;
+  /** Plural, e.g. "categories". */
+  noun: string;
+  /** From activeFilterOptions(), for the counts. */
+  statusOptions: ReturnType<typeof activeFilterOptions>;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <FilterSegment label="Show:">
+        <FilterTabs
+          label={`Show current or deleted ${noun}`}
+          options={TRASHED_OPTIONS}
+          value={filters.trashed}
+          onChange={filters.setTrashed}
+        />
+      </FilterSegment>
+      {filters.statusApplies && (
+        <FilterSegment label="Status:">
+          <FilterTabs
+            label={`Filter ${noun} by status`}
+            options={statusOptions}
+            value={filters.activeFilter}
+            onChange={filters.setActiveFilter}
+          />
+        </FilterSegment>
+      )}
+    </div>
+  );
 }
 
 export function CatalogStatusBadge({ active, deleted }: { active: boolean; deleted?: boolean }) {
@@ -82,17 +165,21 @@ export function useCatalogActions<T extends CatalogItem>({
     }
   }
 
-  function toggleActive(item: T) {
+  /** Flips is_active. Resolves to whether it saved (so a toggle can revert on failure). */
+  async function toggleActive(item: T): Promise<boolean> {
     const nextValue = !item.is_active;
-    return run(item, async () => {
+    let saved = false;
+    await run(item, async () => {
       try {
         await api.put(`${basePath}/${item.id}`, { is_active: nextValue });
         toast.success(nextValue ? `Activated "${item.name}".` : `Deactivated "${item.name}".`);
+        saved = true;
         onChanged();
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : `Could not update this ${noun}.`);
       }
     });
+    return saved;
   }
 
   function restore(item: T) {
@@ -123,6 +210,124 @@ export function useCatalogActions<T extends CatalogItem>({
   }
 
   return { busyIds, toggleActive, remove, restore };
+}
+
+/**
+ * Active/inactive slide toggle (green on, red off) that asks before saving. Flipping it
+ * moves the switch and opens a confirmation; Cancel (or closing the dialog) moves it back
+ * without an API call, and a failed save moves it back too.
+ */
+export function ActiveSwitch<T extends CatalogItem>({
+  item,
+  noun,
+  busy,
+  onConfirm,
+  note,
+}: {
+  item: T;
+  noun: "category" | "level";
+  busy?: boolean;
+  /** Saves the flipped state; resolves to whether it succeeded. */
+  onConfirm: (item: T) => Promise<boolean>;
+  /** Appended to the dialog's description, e.g. what the change does or doesn't affect. */
+  note?: (activating: boolean) => string;
+}) {
+  // The state shown while confirming/saving, before the refetched item catches up.
+  const [pending, setPending] = useState<boolean | null>(null);
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Once the item reflects a change, drop the local override (React's "adjusting state
+  // when a prop changes" pattern, as in useApiGet).
+  const [trackedActive, setTrackedActive] = useState(item.is_active);
+  if (trackedActive !== item.is_active) {
+    setTrackedActive(item.is_active);
+    setPending(null);
+  }
+
+  const checked = pending ?? item.is_active;
+  const activating = !item.is_active;
+
+  function cancel() {
+    setOpen(false);
+    setPending(null);
+  }
+
+  async function confirm() {
+    setSaving(true);
+    const saved = await onConfirm(item);
+    setSaving(false);
+    setOpen(false);
+    if (!saved) setPending(null);
+  }
+
+  return (
+    <>
+      <label className="inline-flex items-center gap-2 text-sm">
+        <Switch
+          checked={checked}
+          disabled={busy || saving}
+          onCheckedChange={(next) => {
+            setPending(next);
+            setOpen(true);
+          }}
+          aria-label={`${item.is_active ? "Deactivate" : "Activate"} ${item.name}`}
+          className="data-checked:bg-emerald-500 data-unchecked:bg-red-500 dark:data-checked:bg-emerald-500 dark:data-unchecked:bg-red-500 [&>[data-slot=switch-thumb]]:bg-white!"
+        />
+        <span
+          className={
+            checked ? "font-medium text-emerald-700 dark:text-emerald-400" : "font-medium text-red-700 dark:text-red-400"
+          }
+        >
+          {checked ? "Active" : "Inactive"}
+        </span>
+      </label>
+      <AlertDialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !saving) cancel();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {activating ? "Activate" : "Deactivate"} this {noun}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              &ldquo;{item.name}&rdquo; will be marked {activating ? "active" : "inactive"}.
+              {note && <> {note(activating)}</>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving} onClick={cancel}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction variant={activating ? "default" : "destructive"} disabled={saving} onClick={confirm}>
+              {saving ? "Saving..." : activating ? "Activate" : "Deactivate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+/**
+ * Confirmation note for a category's switch. Levels keep their own state; the category
+ * only gates them (see Level::isEffectivelyActive on the API).
+ */
+export function categoryToggleNote(activating: boolean): string {
+  return activating
+    ? "Its levels go back to their own saved status."
+    : "Its levels will be hidden while the category is inactive.";
+}
+
+/**
+ * Why a level whose own switch is on still isn't active, or null if nothing blocks it.
+ */
+export function levelBlockedReason(level: Level): string | null {
+  if (level.deleted_at || !level.is_active || level.is_effectively_active) return null;
+  return level.category?.deleted_at ? "Inactive – category deleted" : "Inactive – category off";
 }
 
 interface OrderedItem {

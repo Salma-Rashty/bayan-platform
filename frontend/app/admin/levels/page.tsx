@@ -6,7 +6,6 @@ import { PlusIcon, SearchIcon } from "lucide-react";
 
 import {
   EmptyState,
-  FilterTabs,
   LoadError,
   NativeSelect,
   PageHeader,
@@ -15,11 +14,10 @@ import {
 } from "@/components/admin/admin-ui";
 import {
   activeFilterOptions,
+  CatalogFilters,
   matchesActive,
-  TRASHED_OPTIONS,
+  useCatalogFilters,
   withTrashedParam,
-  type ActiveFilter,
-  type TrashedFilter,
 } from "@/components/admin/catalog-ui";
 import { LevelDialog } from "@/components/admin/level-dialog";
 import { LevelsTable } from "@/components/admin/levels-table";
@@ -28,10 +26,12 @@ import { Input } from "@/components/ui/input";
 import type { Category, Level } from "@/lib/types";
 import { useApiGet } from "@/lib/use-api-get";
 
+const effectivelyActive = (level: Level) => level.is_effectively_active;
+
 function LevelsManager() {
-  const [trashed, setTrashed] = useState<TrashedFilter>("current");
+  const filters = useCatalogFilters();
+  const { trashed, activeFilter } = filters;
   const [categoryId, setCategoryId] = useState("");
-  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [search, setSearch] = useState("");
 
   // Non-deleted categories: what a level can be created in or moved to.
@@ -47,7 +47,9 @@ function LevelsManager() {
       level.name.toLowerCase().includes(query) ||
       (level.description ?? "").toLowerCase().includes(query)
   );
-  const filtered = searched.filter((level) => matchesActive(level, activeFilter));
+  // Active/Inactive follow the effective state, like the API's `active` filter: a level
+  // switched on in an inactive category counts as inactive.
+  const filtered = searched.filter((level) => matchesActive(level, activeFilter, effectivelyActive));
   const categoryList = categories.data ?? [];
 
   return (
@@ -87,8 +89,8 @@ function LevelsManager() {
       )}
 
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative lg:w-72">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative sm:w-72">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
@@ -99,9 +101,6 @@ function LevelsManager() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <FilterTabs label="Show deleted levels" options={TRASHED_OPTIONS} value={trashed} onChange={setTrashed} />
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
           <NativeSelect
             aria-label="Filter by category"
             value={categoryId}
@@ -115,13 +114,12 @@ function LevelsManager() {
               </option>
             ))}
           </NativeSelect>
-          <FilterTabs
-            label="Filter by status"
-            value={activeFilter}
-            onChange={setActiveFilter}
-            options={activeFilterOptions(searched)}
-          />
         </div>
+        <CatalogFilters
+          filters={filters}
+          noun="levels"
+          statusOptions={activeFilterOptions(searched, effectivelyActive)}
+        />
       </div>
 
       {levels.loading && !levels.data ? (

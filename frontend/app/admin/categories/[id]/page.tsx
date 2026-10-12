@@ -3,11 +3,22 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeftIcon, PencilIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CircleCheckIcon,
+  CircleIcon,
+  PencilIcon,
+  PlusIcon,
+  RotateCcwIcon,
+  Trash2Icon,
+} from "lucide-react";
+import { toast } from "sonner";
 
 import { EmptyState, FilterTabs, LoadError, RequirePermission, TableSkeleton } from "@/components/admin/admin-ui";
 import {
+  ActiveSwitch,
   CatalogStatusBadge,
+  categoryToggleNote,
   deleteCategoryBlocker,
   TRASHED_OPTIONS,
   useCatalogActions,
@@ -22,6 +33,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { api, ApiError } from "@/lib/api";
 import { pluralize } from "@/lib/role-rules";
 import type { Category, Level } from "@/lib/types";
 import { useApiGet } from "@/lib/use-api-get";
@@ -43,9 +55,15 @@ function CategoryActions({ category, onChanged }: { category: Category; onChange
 
   return (
     <div className="flex flex-wrap items-start gap-2">
-      <Button variant="outline" disabled={busy} onClick={() => actions.toggleActive(category)}>
-        {category.is_active ? "Deactivate" : "Activate"}
-      </Button>
+      <div className="flex h-8 items-center pr-2">
+        <ActiveSwitch
+          item={category}
+          noun="category"
+          busy={busy}
+          onConfirm={actions.toggleActive}
+          note={categoryToggleNote}
+        />
+      </div>
       <CategoryDialog
         category={category}
         trigger={
@@ -84,10 +102,81 @@ function CategoryActions({ category, onChanged }: { category: Category; onChange
   );
 }
 
+/**
+ * Switches on every level's own status in one go. Shown checked (green) once they're all
+ * on; the category's own state is untouched, so it still gates them.
+ */
+function ActivateAllLevels({ category, onActivated }: { category: Category; onActivated: () => void }) {
+  const inactive = category.inactive_levels_count;
+  const allActive = category.levels_count > 0 && inactive === 0;
+
+  if (category.levels_count === 0 || allActive) {
+    const reason = allActive ? "All levels already active" : "No levels yet";
+    return (
+      // Disabled buttons swallow hover, so the explanation sits on a wrapper.
+      <span title={reason} className="inline-flex">
+        <Button
+          variant="outline"
+          disabled
+          aria-label={`Activate all levels (${reason.toLowerCase()})`}
+          className={allActive ? "border-emerald-500/50 text-emerald-700 disabled:opacity-100 dark:text-emerald-400" : undefined}
+        >
+          {allActive ? (
+            <CircleCheckIcon data-icon="inline-start" className="text-emerald-600 dark:text-emerald-400" />
+          ) : (
+            <CircleIcon data-icon="inline-start" />
+          )}
+          Activate all levels
+        </Button>
+      </span>
+    );
+  }
+
+  return (
+    <ConfirmDialog
+      trigger={
+        <Button variant="outline">
+          <CircleIcon data-icon="inline-start" />
+          Activate all levels
+        </Button>
+      }
+      title="Activate all levels in this category?"
+      description={
+        <>
+          {pluralize(inactive, "inactive level")} in &ldquo;{category.name}&rdquo; will be switched on. The
+          category&apos;s own status doesn&apos;t change
+          {category.is_active ? "." : ", so they stay hidden until the category is active."}
+        </>
+      }
+      confirmLabel="Activate all"
+      pendingLabel="Activating..."
+      onConfirm={async () => {
+        try {
+          const result = await api.patch<{ message: string }>(`/categories/${category.id}/levels/activate-all`);
+          toast.success(result.message);
+          onActivated();
+        } catch (err) {
+          toast.error(err instanceof ApiError ? err.message : "Could not activate these levels.");
+          return false;
+        }
+      }}
+    />
+  );
+}
+
 function CategoryLevels({ category, onChanged }: { category: Category; onChanged: () => void }) {
   const [trashed, setTrashed] = useState<TrashedFilter>("current");
   const levels = useApiGet<Level[]>(withTrashedParam(`/categories/${category.id}/levels`, trashed));
   const categoryDeleted = Boolean(category.deleted_at);
+
+  // The category's state decides whether its levels are effectively active, so refetch
+  // them when it changes ("adjusting state when a prop changes", as in useApiGet).
+  const gate = `${category.is_active}-${category.deleted_at}`;
+  const [trackedGate, setTrackedGate] = useState(gate);
+  if (trackedGate !== gate) {
+    setTrackedGate(gate);
+    levels.reload();
+  }
 
   // Level changes also change the category's level count (and so whether it can be deleted).
   function handleChanged() {
@@ -101,7 +190,8 @@ function CategoryLevels({ category, onChanged }: { category: Category; onChanged
         <CardTitle>Levels</CardTitle>
         <CardDescription>Listed in order. Names are unique within this category.</CardDescription>
         {!categoryDeleted && (
-          <CardAction>
+          <CardAction className="flex flex-wrap justify-end gap-2">
+            <ActivateAllLevels category={category} onActivated={handleChanged} />
             <LevelDialog
               categoryChoice={{ kind: "locked", category }}
               trigger={

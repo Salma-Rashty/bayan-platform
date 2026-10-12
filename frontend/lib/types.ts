@@ -155,6 +155,8 @@ export interface Category {
   order: number;
   /** Non-deleted levels in the category. */
   levels_count: number;
+  /** Non-deleted levels whose own is_active is off (whatever the category's state). */
+  inactive_levels_count: number;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -168,7 +170,10 @@ export interface Level {
   category?: Pick<Category, "id" | "name" | "is_active" | "deleted_at"> | null;
   name: string;
   description: string | null;
+  /** The level's own setting; switching its category off never changes it. */
   is_active: boolean;
+  /** Whether it's actually available: its own setting AND an active, non-deleted category. */
+  is_effectively_active: boolean;
   order: number;
   created_at: string;
   updated_at: string;

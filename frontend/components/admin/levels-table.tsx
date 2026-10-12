@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { PencilIcon, PowerIcon, PowerOffIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
+import { PencilIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
 
-import { CatalogStatusBadge, useCatalogActions } from "@/components/admin/catalog-ui";
+import { ActiveSwitch, CatalogStatusBadge, levelBlockedReason, useCatalogActions } from "@/components/admin/catalog-ui";
 import { LevelDialog } from "@/components/admin/level-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,8 @@ export function LevelsTable({ levels, categories, onChanged }: LevelsTableProps)
             const deleted = Boolean(level.deleted_at);
             const busy = actions.busyIds.has(level.id);
             const categoryDeleted = Boolean(level.category?.deleted_at);
+            // On by itself but hidden by its category: say so, since the switch shows "Active".
+            const blockedReason = levelBlockedReason(level);
 
             return (
               <TableRow key={level.id} className={deleted ? "text-muted-foreground" : undefined}>
@@ -70,7 +72,14 @@ export function LevelsTable({ levels, categories, onChanged }: LevelsTableProps)
                 )}
                 <TableCell className="tabular-nums text-muted-foreground">{level.order}</TableCell>
                 <TableCell>
-                  <CatalogStatusBadge active={level.is_active} deleted={deleted} />
+                  {deleted ? (
+                    <CatalogStatusBadge active={level.is_active} deleted />
+                  ) : (
+                    <div className="flex flex-col items-start gap-0.5">
+                      <ActiveSwitch item={level} noun="level" busy={busy} onConfirm={actions.toggleActive} />
+                      {blockedReason && <span className="text-xs text-muted-foreground">{blockedReason}</span>}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-1">
@@ -89,16 +98,6 @@ export function LevelsTable({ levels, categories, onChanged }: LevelsTableProps)
                       </span>
                     ) : (
                       <>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          disabled={busy}
-                          aria-label={`${level.is_active ? "Deactivate" : "Activate"} ${level.name}`}
-                          title={level.is_active ? "Deactivate" : "Activate"}
-                          onClick={() => actions.toggleActive(level)}
-                        >
-                          {level.is_active ? <PowerOffIcon /> : <PowerIcon />}
-                        </Button>
                         <LevelDialog
                           level={level}
                           categoryChoice={categories}

@@ -2,26 +2,20 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { PencilIcon, PlusIcon, PowerIcon, PowerOffIcon, RotateCcwIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import { PencilIcon, PlusIcon, RotateCcwIcon, SearchIcon, Trash2Icon } from "lucide-react";
 
-import {
-  EmptyState,
-  FilterTabs,
-  LoadError,
-  PageHeader,
-  RequirePermission,
-  TableSkeleton,
-} from "@/components/admin/admin-ui";
+import { EmptyState, LoadError, PageHeader, RequirePermission, TableSkeleton } from "@/components/admin/admin-ui";
 import {
   activeFilterOptions,
+  ActiveSwitch,
+  CatalogFilters,
   CatalogStatusBadge,
+  categoryToggleNote,
   deleteCategoryBlocker,
   matchesActive,
-  TRASHED_OPTIONS,
   useCatalogActions,
+  useCatalogFilters,
   withTrashedParam,
-  type ActiveFilter,
-  type TrashedFilter,
 } from "@/components/admin/catalog-ui";
 import { CategoryDialog } from "@/components/admin/category-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -34,8 +28,8 @@ import type { Category } from "@/lib/types";
 import { useApiGet } from "@/lib/use-api-get";
 
 function CategoriesManager() {
-  const [trashed, setTrashed] = useState<TrashedFilter>("current");
-  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
+  const filters = useCatalogFilters();
+  const { trashed, activeFilter } = filters;
   const [search, setSearch] = useState("");
   const { data, loading, error, reload } = useApiGet<Category[]>(withTrashedParam("/categories", trashed));
   const actions = useCatalogActions<Category>({ basePath: "/categories", noun: "category", onChanged: reload });
@@ -67,8 +61,8 @@ function CategoriesManager() {
         }
       />
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative lg:w-72">
+      <div className="flex flex-col gap-3">
+        <div className="relative sm:w-72">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
@@ -79,15 +73,7 @@ function CategoriesManager() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <FilterTabs
-            label="Filter by status"
-            value={activeFilter}
-            onChange={setActiveFilter}
-            options={activeFilterOptions(searched)}
-          />
-          <FilterTabs label="Show deleted categories" options={TRASHED_OPTIONS} value={trashed} onChange={setTrashed} />
-        </div>
+        <CatalogFilters filters={filters} noun="categories" statusOptions={activeFilterOptions(searched)} />
       </div>
 
       {loading && !data ? (
@@ -136,7 +122,17 @@ function CategoriesManager() {
                     <TableCell className="text-muted-foreground">{pluralize(category.levels_count, "level")}</TableCell>
                     <TableCell className="tabular-nums text-muted-foreground">{category.order}</TableCell>
                     <TableCell>
-                      <CatalogStatusBadge active={category.is_active} deleted={deleted} />
+                      {deleted ? (
+                        <CatalogStatusBadge active={category.is_active} deleted />
+                      ) : (
+                        <ActiveSwitch
+                          item={category}
+                          noun="category"
+                          busy={busy}
+                          onConfirm={actions.toggleActive}
+                          note={categoryToggleNote}
+                        />
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
@@ -147,16 +143,6 @@ function CategoriesManager() {
                           </Button>
                         ) : (
                           <>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              disabled={busy}
-                              aria-label={`${category.is_active ? "Deactivate" : "Activate"} ${category.name}`}
-                              title={category.is_active ? "Deactivate" : "Activate"}
-                              onClick={() => actions.toggleActive(category)}
-                            >
-                              {category.is_active ? <PowerOffIcon /> : <PowerIcon />}
-                            </Button>
                             <CategoryDialog
                               category={category}
                               trigger={
