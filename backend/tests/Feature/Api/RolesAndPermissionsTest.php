@@ -190,7 +190,7 @@ class RolesAndPermissionsTest extends TestCase
         $this->deleteJson("/api/roles/{$superAdmin->id}")->assertForbidden();
 
         $this->assertSame('teacher', $teacher->fresh()->name);
-        $this->assertCount(6, $superAdmin->fresh()->permissions);
+        $this->assertCount(Permission::count(), $superAdmin->fresh()->permissions);
     }
 
     public function test_a_role_in_use_cannot_be_deleted(): void
@@ -218,7 +218,7 @@ class RolesAndPermissionsTest extends TestCase
 
         $this->getJson('/api/permissions')
             ->assertOk()
-            ->assertJsonCount(6)
+            ->assertJsonCount(7)
             ->assertJsonPath('0', [
                 'id' => Permission::findByName('manage-users', 'web')->id,
                 'name' => 'manage-users',
@@ -227,12 +227,12 @@ class RolesAndPermissionsTest extends TestCase
                 'description' => 'Manage accounts, tags and notes; review course and teacher applications; see enrollments.',
                 'wired' => true,
             ])
-            ->assertJsonPath('5.name', 'view-reports')
-            ->assertJsonPath('5.wired', false);
+            ->assertJsonPath('6.name', 'view-reports')
+            ->assertJsonPath('6.wired', false);
 
         // Permissions are defined in code: there are no endpoints to create or delete them.
         $this->postJson('/api/permissions', ['name' => 'export-data'])->assertMethodNotAllowed();
         $this->deleteJson('/api/permissions/'.Permission::findByName('view-reports', 'web')->id)->assertNotFound();
-        $this->assertSame(6, Permission::count());
+        $this->assertSame(7, Permission::count());
     }
 }

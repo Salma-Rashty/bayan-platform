@@ -13,6 +13,7 @@ export const ADMIN_ROLES: Role[] = ["super-admin", "admin"];
 export type SystemPermission =
   | "manage-users"
   | "edit-curriculum"
+  | "manage-catalog"
   | "create-lessons"
   | "grade-homework"
   | "manage-billing"
@@ -28,6 +29,7 @@ export const ALL_ROLES: Role[] = ["super-admin", "admin", "teacher", "student"];
 export const ALL_PERMISSIONS: Permission[] = [
   "manage-users",
   "edit-curriculum",
+  "manage-catalog",
   "create-lessons",
   "grade-homework",
   "manage-billing",
@@ -142,6 +144,35 @@ export interface Paginated<T> {
     to: number | null;
     total: number;
   };
+}
+
+/** A course category (GET /categories). Not yet linked to courses. */
+export interface Category {
+  id: number;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  order: number;
+  /** Non-deleted levels in the category. */
+  levels_count: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+/** A level within a category (GET /levels). Names are unique per category. */
+export interface Level {
+  id: number;
+  category_id: number;
+  /** Summary of the category; included even when the category is deleted. */
+  category?: Pick<Category, "id" | "name" | "is_active" | "deleted_at"> | null;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  order: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 export type CourseType = "arabic" | "quran";

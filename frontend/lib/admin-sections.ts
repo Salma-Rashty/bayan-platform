@@ -19,6 +19,7 @@ export type AdminNavEntry =
   | { kind: "group"; label: string; sections: AdminSection[] };
 
 const USER_MANAGEMENT = "User Management";
+const CATALOG = "Catalog";
 
 /** Admin areas, in nav order. Each is shown only to users holding its permission/role. */
 export const ADMIN_SECTIONS: AdminSection[] = [
@@ -34,6 +35,20 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     label: "Courses",
     description: "Create, publish and organise courses and their lessons.",
     permission: "edit-curriculum",
+  },
+  {
+    href: "/admin/categories",
+    label: "Categories",
+    description: "Organise the catalog into categories and their levels.",
+    permission: "manage-catalog",
+    group: CATALOG,
+  },
+  {
+    href: "/admin/levels",
+    label: "Levels",
+    description: "See and manage every level across categories.",
+    permission: "manage-catalog",
+    group: CATALOG,
   },
   {
     href: "/admin/applications",

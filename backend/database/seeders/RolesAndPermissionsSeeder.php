@@ -16,6 +16,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $permissions = [
             'manage-users',
             'edit-curriculum',
+            'manage-catalog',
             'create-lessons',
             'grade-homework',
             'manage-billing',
@@ -30,7 +31,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $superAdmin->syncPermissions($permissions);
 
         $admin = Role::firstOrCreate(['name' => 'admin']);
-        $admin->syncPermissions(['manage-users', 'view-reports', 'manage-billing']);
+        $admin->syncPermissions(['manage-users', 'manage-catalog', 'view-reports', 'manage-billing']);
 
         $teacher = Role::firstOrCreate(['name' => 'teacher']);
         $teacher->syncPermissions(['create-lessons', 'grade-homework']);

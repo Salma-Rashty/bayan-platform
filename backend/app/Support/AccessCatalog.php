@@ -48,6 +48,12 @@ class AccessCatalog
             'description' => 'Create and edit courses, lessons, materials, assignments and quizzes; see quiz answers and attempts.',
             'wired' => true,
         ],
+        'manage-catalog' => [
+            'label' => 'Manage catalog',
+            'group' => 'Curriculum',
+            'description' => 'Create, edit and delete course categories and their levels.',
+            'wired' => true,
+        ],
         'create-lessons' => [
             'label' => 'Create lessons',
             'group' => 'Curriculum',

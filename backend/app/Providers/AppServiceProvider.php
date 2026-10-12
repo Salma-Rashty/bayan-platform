@@ -3,10 +3,12 @@
 namespace App\Providers;
 
 use App\Models\Assignment;
+use App\Models\Category;
 use App\Models\Course;
 use App\Models\CourseApplication;
 use App\Models\Enrollment;
 use App\Models\Lesson;
+use App\Models\Level;
 use App\Models\Material;
 use App\Models\Question;
 use App\Models\QuestionOption;
@@ -18,10 +20,12 @@ use App\Models\TeacherApplication;
 use App\Models\User;
 use App\Models\UserNote;
 use App\Policies\AssignmentPolicy;
+use App\Policies\CategoryPolicy;
 use App\Policies\CourseApplicationPolicy;
 use App\Policies\CoursePolicy;
 use App\Policies\EnrollmentPolicy;
 use App\Policies\LessonPolicy;
+use App\Policies\LevelPolicy;
 use App\Policies\MaterialPolicy;
 use App\Policies\PermissionPolicy;
 use App\Policies\QuestionOptionPolicy;
@@ -70,6 +74,8 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(Course::class, CoursePolicy::class);
         Gate::policy(Lesson::class, LessonPolicy::class);
+        Gate::policy(Category::class, CategoryPolicy::class);
+        Gate::policy(Level::class, LevelPolicy::class);
         Gate::policy(CourseApplication::class, CourseApplicationPolicy::class);
         Gate::policy(Enrollment::class, EnrollmentPolicy::class);
         Gate::policy(TeacherApplication::class, TeacherApplicationPolicy::class);

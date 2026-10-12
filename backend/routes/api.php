@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\Api\AssignmentController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CourseApplicationController;
 use App\Http\Controllers\Api\CourseController;
 use App\Http\Controllers\Api\EnrollmentController;
 use App\Http\Controllers\Api\LessonController;
+use App\Http\Controllers\Api\LevelController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\MyController;
 use App\Http\Controllers\Api\PermissionController;
@@ -37,6 +39,22 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::delete('/courses/{course}', [CourseController::class, 'destroy']);
     Route::patch('/courses/{course}/restore', [CourseController::class, 'restore'])->withTrashed();
     Route::post('/courses/{course}/apply', [CourseController::class, 'apply']);
+
+    // Catalog: categories and their levels (manage-catalog)
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::post('/categories', [CategoryController::class, 'store']);
+    Route::get('/categories/{category}', [CategoryController::class, 'show'])->withTrashed();
+    Route::match(['put', 'patch'], '/categories/{category}', [CategoryController::class, 'update']);
+    Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+    Route::patch('/categories/{category}/restore', [CategoryController::class, 'restore'])->withTrashed();
+    Route::get('/categories/{category}/levels', [LevelController::class, 'forCategory'])->withTrashed();
+
+    Route::get('/levels', [LevelController::class, 'index']);
+    Route::post('/levels', [LevelController::class, 'store']);
+    Route::get('/levels/{level}', [LevelController::class, 'show'])->withTrashed();
+    Route::match(['put', 'patch'], '/levels/{level}', [LevelController::class, 'update']);
+    Route::delete('/levels/{level}', [LevelController::class, 'destroy']);
+    Route::patch('/levels/{level}/restore', [LevelController::class, 'restore'])->withTrashed();
 
     // Lessons (nested under course for listing/creation)
     Route::get('/courses/{course}/lessons', [LessonController::class, 'index']);
