@@ -48,6 +48,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
     Route::patch('/categories/{category}/restore', [CategoryController::class, 'restore'])->withTrashed();
     Route::get('/categories/{category}/levels', [LevelController::class, 'forCategory'])->withTrashed();
+    Route::patch('/categories/{category}/levels/activate-all', [CategoryController::class, 'activateAllLevels']);
 
     Route::get('/levels', [LevelController::class, 'index']);
     Route::post('/levels', [LevelController::class, 'store']);

@@ -103,7 +103,8 @@ class LevelController extends Controller
     }
 
     /**
-     * Applies the shared active/trashed filters; ordering is left to the caller.
+     * Applies the shared active/trashed filters; ordering is left to the caller. `active`
+     * means effectively active: the level and its category both on (see Level::isEffectivelyActive).
      */
     private function filtered(Builder $query, IndexLevelsRequest $request): Builder
     {
@@ -111,7 +112,9 @@ class LevelController extends Controller
 
         return $query
             ->with(['category' => fn ($query) => $query->withTrashed()])
-            ->when(isset($filters['active']), fn ($query) => $query->where('is_active', $request->boolean('active')))
+            ->when(isset($filters['active']), fn ($query) => $request->boolean('active')
+                ? $query->effectivelyActive()
+                : $query->effectivelyInactive())
             ->when(($filters['trashed'] ?? null) === 'with', fn ($query) => $query->withTrashed())
             ->when(($filters['trashed'] ?? null) === 'only', fn ($query) => $query->onlyTrashed());
     }

@@ -25,7 +25,7 @@ class CategoryController extends Controller
         $filters = $request->validated();
 
         $categories = Category::query()
-            ->withCount('levels')
+            ->withCount(self::levelCounts())
             ->when(isset($filters['active']), fn ($query) => $query->where('is_active', $request->boolean('active')))
             ->when(($filters['trashed'] ?? null) === 'with', fn ($query) => $query->withTrashed())
             ->when(($filters['trashed'] ?? null) === 'only', fn ($query) => $query->onlyTrashed())
@@ -40,21 +40,21 @@ class CategoryController extends Controller
     {
         Gate::authorize('view', $category);
 
-        return new CategoryResource($category->loadCount('levels'));
+        return new CategoryResource($category->loadCount(self::levelCounts()));
     }
 
     public function store(StoreCategoryRequest $request): JsonResponse
     {
         $category = Category::create($request->validated());
 
-        return (new CategoryResource($category->refresh()->loadCount('levels')))->response()->setStatusCode(201);
+        return (new CategoryResource($category->refresh()->loadCount(self::levelCounts())))->response()->setStatusCode(201);
     }
 
     public function update(UpdateCategoryRequest $request, Category $category): CategoryResource
     {
         $category->update($request->validated());
 
-        return new CategoryResource($category->loadCount('levels'));
+        return new CategoryResource($category->loadCount(self::levelCounts()));
     }
 
     public function destroy(Category $category): JsonResponse
@@ -93,6 +93,38 @@ class CategoryController extends Controller
 
         $category->restore();
 
-        return new CategoryResource($category->loadCount('levels'));
+        return new CategoryResource($category->loadCount(self::levelCounts()));
+    }
+
+    /**
+     * Switches on every live level's own is_active. The category's state is untouched, so in
+     * an inactive category the levels stay effectively inactive until it's switched on.
+     */
+    public function activateAllLevels(Category $category): JsonResponse
+    {
+        Gate::authorize('update', $category);
+
+        $activated = $category->levels()->where('is_active', false)->update(['is_active' => true]);
+
+        return response()->json([
+            'message' => $activated === 0
+                ? 'All levels were already active.'
+                : "Activated {$activated} ".Str::plural('level', $activated).'.',
+            'activated' => $activated,
+            'category' => new CategoryResource($category->loadCount(self::levelCounts())),
+        ]);
+    }
+
+    /**
+     * Non-deleted level counts for CategoryResource: all of them, and those switched off themselves.
+     *
+     * @return array<int|string, mixed>
+     */
+    private static function levelCounts(): array
+    {
+        return [
+            'levels',
+            'levels as inactive_levels_count' => fn ($query) => $query->where('is_active', false),
+        ];
     }
 }

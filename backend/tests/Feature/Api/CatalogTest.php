@@ -451,6 +451,152 @@ class CatalogTest extends TestCase
         $this->getJson("/api/categories/{$quran->id}/levels")->assertJsonCount(1)->assertJsonPath('0.category.name', 'Quran');
     }
 
+    public function test_a_level_is_effectively_active_only_when_it_and_its_category_are_active(): void
+    {
+        $on = $this->category(['name' => 'On']);
+        $off = $this->category(['name' => 'Off', 'is_active' => false]);
+        $gone = $this->category(['name' => 'Gone']);
+
+        $onOn = $on->levels()->create(['name' => 'on/on']);
+        $on->levels()->create(['name' => 'on/off', 'is_active' => false]);
+        $off->levels()->create(['name' => 'off/on']);
+        $off->levels()->create(['name' => 'off/off', 'is_active' => false]);
+        $goneOn = $gone->levels()->create(['name' => 'gone/on']);
+        // Bypasses the delete guard to cover a live level left in a deleted category.
+        $gone->delete();
+
+        $effective = Level::with(['category' => fn ($query) => $query->withTrashed()])->get()
+            ->filter->isEffectivelyActive()->pluck('name')->all();
+        $this->assertSame(['on/on'], $effective);
+
+        $this->assertSame(['on/on'], Level::effectivelyActive()->pluck('name')->all());
+        $this->assertEqualsCanonicalizing(
+            ['on/off', 'off/on', 'off/off', 'gone/on'],
+            Level::effectivelyInactive()->pluck('name')->all()
+        );
+
+        $this->assertTrue($onOn->fresh()->isEffectivelyActive());
+        $this->assertFalse($goneOn->fresh()->isEffectivelyActive());
+    }
+
+    public function test_switching_a_category_off_hides_its_levels_without_overwriting_them(): void
+    {
+        $arabic = $this->category(['name' => 'Arabic']);
+        $beginner = $arabic->levels()->create(['name' => 'Beginner']);
+        $paused = $arabic->levels()->create(['name' => 'Paused', 'is_active' => false]);
+        $quran = $this->category(['name' => 'Quran']);
+        $quran->levels()->create(['name' => 'Tajweed']);
+
+        $this->actingAsRole('admin');
+
+        $this->putJson("/api/categories/{$arabic->id}", ['is_active' => false])->assertOk();
+
+        // Stored states are untouched...
+        $this->assertTrue($beginner->fresh()->is_active);
+        $this->assertFalse($paused->fresh()->is_active);
+
+        // ...but none of the category's levels are effectively active any more.
+        $levels = collect($this->getJson("/api/categories/{$arabic->id}/levels")->json())->keyBy('name');
+        $this->assertTrue($levels['Beginner']['is_active']);
+        $this->assertFalse($levels['Beginner']['is_effectively_active']);
+        $this->assertFalse($levels['Paused']['is_effectively_active']);
+
+        $this->assertSame(['Tajweed'], array_column($this->getJson('/api/levels?active=1')->json(), 'name'));
+        $this->assertEqualsCanonicalizing(
+            ['Beginner', 'Paused'],
+            array_column($this->getJson('/api/levels?active=0')->json(), 'name')
+        );
+        $this->assertSame([], $this->getJson("/api/categories/{$arabic->id}/levels?active=1")->json());
+
+        // Switching the category back on restores each level's own saved state.
+        $this->putJson("/api/categories/{$arabic->id}", ['is_active' => true])->assertOk();
+
+        $levels = collect($this->getJson("/api/categories/{$arabic->id}/levels")->json())->keyBy('name');
+        $this->assertTrue($levels['Beginner']['is_effectively_active']);
+        $this->assertFalse($levels['Paused']['is_effectively_active']);
+        $this->assertFalse($levels['Paused']['is_active']);
+        $this->assertSame(
+            ['Beginner', 'Tajweed'],
+            array_column($this->getJson('/api/levels?active=1')->json(), 'name')
+        );
+    }
+
+    public function test_a_levels_own_state_can_change_while_its_category_is_off(): void
+    {
+        $arabic = $this->category(['name' => 'Arabic', 'is_active' => false]);
+        $paused = $arabic->levels()->create(['name' => 'Paused', 'is_active' => false]);
+
+        $this->actingAsRole('admin');
+
+        // Turning the level on is saved, but it stays hidden until the category is on.
+        $this->putJson("/api/levels/{$paused->id}", ['is_active' => true])
+            ->assertOk()
+            ->assertJsonPath('is_active', true)
+            ->assertJsonPath('is_effectively_active', false);
+
+        $this->putJson("/api/categories/{$arabic->id}", ['is_active' => true])->assertOk();
+        $this->getJson("/api/levels/{$paused->id}")->assertJsonPath('is_effectively_active', true);
+    }
+
+    public function test_activating_all_of_a_categorys_levels(): void
+    {
+        $arabic = $this->category(['name' => 'Arabic', 'is_active' => false]);
+        $on = $arabic->levels()->create(['name' => 'On']);
+        $off = $arabic->levels()->create(['name' => 'Off', 'is_active' => false]);
+        $alsoOff = $arabic->levels()->create(['name' => 'Also off', 'is_active' => false]);
+        $deleted = $arabic->levels()->create(['name' => 'Deleted', 'is_active' => false]);
+        $deleted->delete();
+        $other = $this->category(['name' => 'Quran'])->levels()->create(['name' => 'Elsewhere', 'is_active' => false]);
+
+        $this->actingAsRole('admin');
+
+        $this->getJson("/api/categories/{$arabic->id}")
+            ->assertJsonPath('levels_count', 3)
+            ->assertJsonPath('inactive_levels_count', 2);
+
+        $this->patchJson("/api/categories/{$arabic->id}/levels/activate-all")
+            ->assertOk()
+            ->assertJsonPath('message', 'Activated 2 levels.')
+            ->assertJsonPath('activated', 2)
+            ->assertJsonPath('category.inactive_levels_count', 0)
+            // Only the levels' own state changes: the category stays inactive...
+            ->assertJsonPath('category.is_active', false);
+
+        $this->assertTrue($on->fresh()->is_active);
+        $this->assertTrue($off->fresh()->is_active);
+        $this->assertTrue($alsoOff->fresh()->is_active);
+        // ...and deleted levels and other categories' levels are left alone.
+        $this->assertFalse($deleted->fresh()->is_active);
+        $this->assertFalse($other->fresh()->is_active);
+
+        // The category still gates them until it's switched on.
+        $this->assertSame([], $this->getJson("/api/categories/{$arabic->id}/levels?active=1")->json());
+        $this->putJson("/api/categories/{$arabic->id}", ['is_active' => true])->assertOk();
+        $this->assertCount(3, $this->getJson("/api/categories/{$arabic->id}/levels?active=1")->json());
+
+        // Running it again changes nothing.
+        $this->patchJson("/api/categories/{$arabic->id}/levels/activate-all")
+            ->assertOk()
+            ->assertJsonPath('activated', 0)
+            ->assertJsonPath('message', 'All levels were already active.');
+    }
+
+    public function test_activating_all_levels_needs_manage_catalog_and_a_live_category(): void
+    {
+        $category = $this->category();
+        $level = $category->levels()->create(['name' => 'Off', 'is_active' => false]);
+
+        $this->actingAsRole('teacher');
+        $this->patchJson("/api/categories/{$category->id}/levels/activate-all")->assertForbidden();
+        $this->assertFalse($level->fresh()->is_active);
+
+        $gone = $this->category();
+        $gone->delete();
+
+        $this->actingAsRole('admin');
+        $this->patchJson("/api/categories/{$gone->id}/levels/activate-all")->assertNotFound();
+    }
+
     public function test_category_levels_relation_is_ordered(): void
     {
         $category = $this->category();

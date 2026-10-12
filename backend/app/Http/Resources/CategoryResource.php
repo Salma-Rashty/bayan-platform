@@ -20,6 +20,8 @@ class CategoryResource extends JsonResource
             'order' => $this->order,
             // Non-deleted levels only.
             'levels_count' => $this->whenCounted('levels'),
+            // Non-deleted levels whose own is_active is off (regardless of the category's state).
+            'inactive_levels_count' => $this->whenCounted('inactive_levels'),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'deleted_at' => $this->deleted_at,

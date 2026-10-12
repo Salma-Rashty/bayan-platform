@@ -24,7 +24,10 @@ class LevelResource extends JsonResource
             ] : null),
             'name' => $this->name,
             'description' => $this->description,
+            // The level's own setting, kept independently of its category.
             'is_active' => $this->is_active,
+            // Whether it's actually available: its own setting AND an active, non-deleted category.
+            'is_effectively_active' => $this->isEffectivelyActive(),
             'order' => $this->order,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
