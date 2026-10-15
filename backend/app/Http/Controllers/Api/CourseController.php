@@ -17,11 +17,15 @@ use Illuminate\Support\Facades\Gate;
 
 class CourseController extends Controller
 {
+    /**
+     * Public: guests see published courses. These routes skip auth:sanctum, so a bearer token
+     * is resolved explicitly to let staff see unpublished ones too.
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Course::query();
 
-        if (! $request->user()->hasAnyRole(['super-admin', 'admin', 'teacher'])) {
+        if (! $this->isStaff($request)) {
             $query->where('is_published', true);
         }
 
@@ -30,7 +34,7 @@ class CourseController extends Controller
 
     public function show(Request $request, Course $course): CourseResource
     {
-        if (! $course->is_published && ! $request->user()->hasAnyRole(['super-admin', 'admin', 'teacher'])) {
+        if (! $course->is_published && ! $this->isStaff($request)) {
             abort(404);
         }
 
@@ -83,5 +87,10 @@ class CourseController extends Controller
         );
 
         return (new CourseApplicationResource($application))->response()->setStatusCode(201);
+    }
+
+    private function isStaff(Request $request): bool
+    {
+        return (bool) $request->user('sanctum')?->hasAnyRole(['super-admin', 'admin', 'teacher']);
     }
 }

@@ -9,6 +9,7 @@ use App\Models\TeacherApplication;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class EnrollmentApplicationSeeder extends Seeder
 {
@@ -52,12 +53,23 @@ class EnrollmentApplicationSeeder extends Seeder
             ['status' => 'active', 'enrolled_at' => now()]
         );
 
+        // No catalog selections: the catalog isn't seeded. The CV is a placeholder file.
+        Storage::disk('local')->put('teacher-applications/seed/cv.pdf', '%PDF-1.4 placeholder CV');
         TeacherApplication::firstOrCreate(
             ['email' => 'prospective.teacher@bayan.test'],
             [
-                'name' => 'Omar Siddiqui',
-                'phone' => '+1-555-0100',
-                'qualifications' => 'Ijazah in Tajweed, 5 years teaching experience.',
+                'first_name' => 'Omar',
+                'last_name' => 'Siddiqui',
+                'phone' => '+201001234567',
+                'phone_country' => 'EG',
+                'nationality' => 'EG',
+                'birth_date' => '1990-04-12',
+                'gender' => 'male',
+                'about' => 'I hold an ijazah in Tajweed and have taught Quran recitation for five years, '
+                    .'both in person at my local mosque and online. I teach children and adults, and I enjoy '
+                    .'helping beginners build confidence in reading. My lessons combine clear explanation of the '
+                    .'rules with plenty of guided practice, and I give each student regular feedback.',
+                'cv_path' => 'teacher-applications/seed/cv.pdf',
                 'status' => 'pending',
             ]
         );

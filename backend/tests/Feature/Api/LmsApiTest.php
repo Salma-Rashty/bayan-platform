@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Quiz;
+use App\Models\TeacherApplication;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -172,12 +173,19 @@ class LmsApiTest extends TestCase
         Sanctum::actingAs($curriculumAdmin, ['*']);
         $curriculumAdmin->givePermissionTo('manage-users');
 
-        $teacherApplication = $this->postJson('/api/teacher-applications', [
-            'name' => 'Prospective Teacher',
+        $teacherApplication = TeacherApplication::create([
+            'first_name' => 'Prospective',
+            'last_name' => 'Teacher',
             'email' => 'prospective@example.test',
-        ])->assertCreated()->json();
+            'nationality' => 'EG',
+            'birth_date' => '1990-01-01',
+            'gender' => 'female',
+            'about' => 'Experienced teacher.',
+            'cv_path' => 'teacher-applications/test/cv.pdf',
+            'status' => 'interview',
+        ]);
 
-        $this->postJson("/api/teacher-applications/{$teacherApplication['id']}/accept")
+        $this->postJson("/api/teacher-applications/{$teacherApplication->id}/accept")
             ->assertOk()
             ->assertJsonPath('status', 'accepted');
 

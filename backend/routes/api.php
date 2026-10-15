@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\LevelController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\MyController;
 use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\PublicCatalogController;
 use App\Http\Controllers\Api\QuestionController;
 use App\Http\Controllers\Api\QuestionOptionController;
 use App\Http\Controllers\Api\QuizController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SubmissionController;
 use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TeacherApplicationController;
+use App\Http\Controllers\Api\TeacherApplicationFileController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserNoteController;
 use Illuminate\Support\Facades\Route;
@@ -25,15 +27,27 @@ use Illuminate\Support\Facades\Route;
 Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:6,1');
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:6,1');
 
-Route::post('/teacher-applications', [TeacherApplicationController::class, 'store'])->middleware('throttle:6,1');
+// Public (no account): the live catalog (active-only for students; everything for the
+// "Teach with us" form). Submitting an application needs an account (see below).
+Route::get('/public/catalog', [PublicCatalogController::class, 'index'])->middleware('throttle:60,1');
+Route::get('/public/catalog/teacher-application', [PublicCatalogController::class, 'teacherApplication'])->middleware('throttle:60,1');
+// Courses are browsable without an account (published only, unless the bearer is staff).
+Route::get('/courses', [CourseController::class, 'index'])->middleware('throttle:60,1');
+Route::get('/courses/{course}', [CourseController::class, 'show'])->middleware('throttle:60,1');
+
+// A teacher application's CV/video, through short-lived signed links only (minted by the
+// authenticated .../files/{file}/links endpoint below). No auth header: <video>/<iframe> can't send one.
+Route::get('/teacher-application-files/{teacherApplication}/{file}/{disposition}', [TeacherApplicationFileController::class, 'serve'])
+    ->whereIn('file', ['cv', 'video'])
+    ->whereIn('disposition', ['inline', 'attachment'])
+    ->middleware('signed')
+    ->name('teacher-applications.files.serve');
 
 Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'me']);
 
     // Courses
-    Route::get('/courses', [CourseController::class, 'index']);
-    Route::get('/courses/{course}', [CourseController::class, 'show']);
     Route::post('/courses', [CourseController::class, 'store']);
     Route::match(['put', 'patch'], '/courses/{course}', [CourseController::class, 'update']);
     Route::delete('/courses/{course}', [CourseController::class, 'destroy']);
@@ -76,6 +90,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     // Current user's applications / enrollments
     Route::get('/my/applications', [MyController::class, 'applications']);
     Route::get('/my/enrollments', [MyController::class, 'enrollments']);
+    Route::get('/my/teacher-applications', [MyController::class, 'teacherApplications']);
+
+    // Teacher applications: any signed-in user may apply (one per 3 months; admins unlimited).
+    Route::post('/teacher-applications', [TeacherApplicationController::class, 'store'])->middleware('throttle:6,1');
 
     // Course applications (manage-users)
     Route::get('/course-applications', [CourseApplicationController::class, 'index']);
@@ -87,6 +105,11 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     // Teacher applications (manage-users)
     Route::get('/teacher-applications', [TeacherApplicationController::class, 'index']);
+    Route::get('/teacher-applications/{teacherApplication}', [TeacherApplicationController::class, 'show']);
+    Route::patch('/teacher-applications/{teacherApplication}/status', [TeacherApplicationController::class, 'updateStatus']);
+    Route::post('/teacher-applications/{teacherApplication}/lift-cooldown', [TeacherApplicationController::class, 'liftCooldown']);
+    Route::post('/teacher-applications/{teacherApplication}/files/{file}/links', [TeacherApplicationFileController::class, 'links'])
+        ->whereIn('file', ['cv', 'video']);
     Route::post('/teacher-applications/{teacherApplication}/accept', [TeacherApplicationController::class, 'accept']);
     Route::post('/teacher-applications/{teacherApplication}/reject', [TeacherApplicationController::class, 'reject']);
 
