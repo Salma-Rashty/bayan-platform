@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { ApiError } from "@/lib/api";
+import { authHref, useAuthNext } from "@/lib/auth-redirect";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +25,8 @@ type LoginValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  // Set when sent here to log in first (e.g. from "Teach with us" or a course page).
+  const next = useAuthNext();
   const { login } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -42,7 +45,7 @@ export default function LoginPage() {
     try {
       await login(values.email, values.password);
       toast.success("Welcome back!");
-      router.push("/dashboard");
+      router.push(next ?? "/dashboard");
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.errors) {
@@ -104,7 +107,7 @@ export default function LoginPage() {
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link href="/register" className="text-primary underline-offset-4 hover:underline">
+            <Link href={authHref("/register", next)} className="text-primary underline-offset-4 hover:underline">
               Sign up
             </Link>
           </p>

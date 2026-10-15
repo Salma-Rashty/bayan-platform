@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { ApiError } from "@/lib/api";
+import { authHref, useAuthNext } from "@/lib/auth-redirect";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,8 @@ const KNOWN_FIELDS = ["name", "email", "password", "password_confirmation"] as c
 
 export default function RegisterPage() {
   const router = useRouter();
+  // Set when sent here to log in first (e.g. from "Teach with us" or a course page).
+  const next = useAuthNext();
   const { register: registerUser } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -53,7 +56,7 @@ export default function RegisterPage() {
     try {
       await registerUser(values.name, values.email, values.password, values.password_confirmation);
       toast.success("Account created!");
-      router.push("/dashboard");
+      router.push(next ?? "/dashboard");
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.errors) {
@@ -133,7 +136,7 @@ export default function RegisterPage() {
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login" className="text-primary underline-offset-4 hover:underline">
+            <Link href={authHref("/login", next)} className="text-primary underline-offset-4 hover:underline">
               Log in
             </Link>
           </p>

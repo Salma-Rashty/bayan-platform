@@ -79,6 +79,45 @@ async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise
   return data as T;
 }
 
+/**
+ * POSTs multipart form data with upload progress (fetch can't report it), for large files.
+ * Errors are thrown as ApiError, like the JSON helpers.
+ */
+export function apiUpload<T>(path: string, body: FormData, onProgress?: (fraction: number) => void): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_URL}${path}`);
+    xhr.setRequestHeader("Accept", "application/json");
+    const token = getToken();
+    if (token) {
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    }
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded / event.total);
+    };
+    xhr.onerror = () => reject(new ApiError("Network error. Check your connection and try again.", 0));
+    xhr.onload = () => {
+      let data: { message?: string; errors?: Record<string, string[]> } | null = null;
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {
+        // Non-JSON (e.g. a proxy's 413 page) falls through to the status-based message.
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(data as T);
+      } else if (xhr.status === 413) {
+        reject(new ApiError("Your files are too large for the server to accept.", 413));
+      } else {
+        reject(new ApiError(data?.message ?? "Something went wrong. Please try again.", xhr.status, data?.errors));
+      }
+    };
+
+    xhr.send(body);
+  });
+}
+
 export const api = {
   get: <T>(path: string, options?: ApiFetchOptions) => apiFetch<T>(path, { ...options, method: "GET" }),
   post: <T>(path: string, body?: unknown, options?: ApiFetchOptions) =>

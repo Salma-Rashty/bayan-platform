@@ -59,14 +59,17 @@ export function Nav() {
             >
               Teach with us
             </Link>
-            {user && hasRole("student") && (
+            {/* Courses are browsable without an account. */}
+            {(!user || hasRole("student")) && (
               <div className="flex items-center gap-4">
                 <Link href="/courses" className="text-sm font-medium text-foreground hover:underline">
                   Courses
                 </Link>
-                <Link href="/my/courses" className="text-sm font-medium text-foreground hover:underline">
-                  My Courses
-                </Link>
+                {user && (
+                  <Link href="/my/courses" className="text-sm font-medium text-foreground hover:underline">
+                    My Courses
+                  </Link>
+                )}
               </div>
             )}
             {user && hasAnyRole(STAFF_ROLES) && (
@@ -121,6 +124,7 @@ export function Nav() {
                     </DropdownMenuLabel>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem render={<Link href="/my/teacher-application" />}>My teacher application</DropdownMenuItem>
                   <DropdownMenuItem onClick={handleLogout}>Log out</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

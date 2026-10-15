@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/lib/auth-context";
+import { authHref } from "@/lib/auth-redirect";
 import type { Role } from "@/lib/types";
 
 /**
- * Wraps a page's content, redirecting to /login until an authenticated user is loaded.
+ * Wraps a page's content, redirecting to /login (and back afterwards) until an authenticated user is loaded.
  * Pass `roles` to additionally require one of them; other users see an access notice.
  */
 export function Protected({ children, roles }: { children: ReactNode; roles?: Role[] }) {
@@ -17,7 +18,8 @@ export function Protected({ children, roles }: { children: ReactNode; roles?: Ro
 
   useEffect(() => {
     if (!loading && !user) {
-      router.replace("/login");
+      // Come back here after logging in.
+      router.replace(authHref("/login", window.location.pathname + window.location.search));
     }
   }, [loading, user, router]);
 

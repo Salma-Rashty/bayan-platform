@@ -241,18 +241,135 @@ export interface CourseApplication {
   deleted_at: string | null;
 }
 
-export interface TeacherApplication {
+export type TeacherApplicationStatus = "pending" | "reviewing" | "interview" | "accepted" | "rejected";
+
+export type Gender = "male" | "female";
+
+export type AgeGroup = "children" | "teenagers" | "adults" | "elderly";
+
+/** A summary of a catalog row as recorded on an application (may since have been deleted). */
+export interface CatalogSummary {
+  id: number;
+  name: string;
+  deleted_at: string | null;
+}
+
+/** One chosen category, reassembled from the application's selection tables. */
+export interface TeacherApplicationSelection {
+  category: CatalogSummary | null;
+  /** Chosen levels with their age groups (when the category has levels). */
+  levels: { level: CatalogSummary | null; age_groups: AgeGroup[] }[];
+  /** Age groups for the category itself (when it has no levels). */
+  age_groups: AgeGroup[];
+}
+
+export interface TeacherApplicationFile {
+  /** Download name, e.g. "amina-hassan-cv.pdf". */
+  name: string;
+  mime_type: string;
+  size: number | null;
+  /** Whether it can be viewed in the browser (PDF CVs; videos, format permitting). */
+  previewable: boolean;
+}
+
+/** A user as shown on a teacher application (loaded even if since deleted). */
+export interface ApplicationUserSummary {
   id: number;
   name: string;
   email: string;
+  roles: Role[];
+  deleted_at: string | null;
+}
+
+/** Admin detail only: the applicant's other applications and the reapplication cooldown. */
+export interface TeacherApplicationHistory {
+  /** Other applications by the same applicant: same account and/or same name + birth date. */
+  matches: {
+    id: number;
+    name: string;
+    email: string;
+    status: TeacherApplicationStatus;
+    created_at: string;
+    same_account: boolean;
+    same_identity: boolean;
+  }[];
+  cooldown_months: number;
+  /** The application the cooldown counts from. */
+  latest_application_id: number | null;
+  /** When they may apply again; null if they may apply now. */
+  next_allowed_at: string | null;
+  cooldown_lifted_at: string | null;
+  cooldown_lifted_by: string | null;
+}
+
+export interface TeacherApplication {
+  id: number;
+  /** The applicant's account; null for older anonymous applications or an admin's for someone without one. */
+  user_id?: number | null;
+  user?: ApplicationUserSummary | null;
+  /** Who submitted it: the applicant, or an admin on their behalf. */
+  submitted_by?: ApplicationUserSummary | null;
+  first_name: string;
+  last_name: string;
+  name: string;
+  email: string;
+  /** E.164, e.g. +905551234567 (applications from before per-country validation may differ). */
   phone: string | null;
-  qualifications: string | null;
-  cv_path: string | null;
-  status: CourseApplicationStatus;
+  /** ISO 3166-1 alpha-2 code the phone was validated against. */
+  phone_country: string | null;
+  /** The phone in readable international form, e.g. "+90 555 123 45 67". */
+  phone_display: string | null;
+  /** ISO 3166-1 alpha-2 code. */
+  nationality: string;
+  nationality_name: string;
+  birth_date: string;
+  gender: Gender;
+  about: string;
+  status: TeacherApplicationStatus;
+  /** Statuses this application can move to next. */
+  allowed_transitions: TeacherApplicationStatus[];
   notes: string | null;
+  /** Detail view only. Files are opened through links minted on demand (see application-file-viewer). */
+  files?: { cv: TeacherApplicationFile | null; video: TeacherApplicationFile | null };
+  /** Detail view only. */
+  selections?: TeacherApplicationSelection[];
+  /** Admin detail only. */
+  history?: TeacherApplicationHistory;
+  /** List view: names of the chosen categories. */
+  category_names?: string[];
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+/** GET /my/teacher-applications: the signed-in user's own applications (read-only) and cooldown. */
+export interface MyTeacherApplications {
+  /** Newest first; applicant-safe fields only (no notes, review controls or history). */
+  data: TeacherApplication[];
+  can_apply: boolean;
+  /** When they may apply again; null if they may apply now. */
+  next_allowed_at: string | null;
+  /** Admins: never in cooldown, may apply on others' behalf. */
+  cooldown_exempt: boolean;
+  cooldown_months: number;
+}
+
+/** GET /public/catalog: effectively-active categories with their effectively-active levels. */
+export interface PublicCatalogCategory {
+  id: number;
+  name: string;
+  description: string | null;
+  has_levels: boolean;
+  levels: { id: number; name: string; description: string | null }[];
+}
+
+/**
+ * GET /public/catalog/teacher-application: every category and level, inactive included
+ * (applicants may choose either), with their own is_active.
+ */
+export interface TeacherApplicationCatalogCategory extends Omit<PublicCatalogCategory, "levels"> {
+  is_active: boolean;
+  levels: (PublicCatalogCategory["levels"][number] & { is_active: boolean })[];
 }
 
 export type EnrollmentStatus = "active" | "completed" | "cancelled";

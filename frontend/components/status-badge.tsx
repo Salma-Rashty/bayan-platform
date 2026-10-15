@@ -1,11 +1,12 @@
 import { Badge } from "@/components/ui/badge";
-import type { CourseApplicationStatus, EnrollmentStatus } from "@/lib/types";
+import type { CourseApplicationStatus, EnrollmentStatus, TeacherApplicationStatus } from "@/lib/types";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
 
-const APPLICATION_VARIANTS: Record<CourseApplicationStatus, BadgeVariant> = {
+const APPLICATION_VARIANTS: Record<CourseApplicationStatus | TeacherApplicationStatus, BadgeVariant> = {
   pending: "outline",
   reviewing: "secondary",
+  interview: "secondary",
   accepted: "default",
   rejected: "destructive",
 };
@@ -16,7 +17,7 @@ const ENROLLMENT_VARIANTS: Record<EnrollmentStatus, BadgeVariant> = {
   cancelled: "destructive",
 };
 
-export function ApplicationStatusBadge({ status }: { status: CourseApplicationStatus }) {
+export function ApplicationStatusBadge({ status }: { status: CourseApplicationStatus | TeacherApplicationStatus }) {
   return (
     <Badge variant={APPLICATION_VARIANTS[status]} className="capitalize">
       {status}

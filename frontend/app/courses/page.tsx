@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 
-import { Protected } from "@/components/protected";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,11 +85,9 @@ function CoursesGrid() {
 
 export default function CoursesPage() {
   return (
-    <Protected>
-      <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-12">
-        <h1 className="mb-6 text-2xl font-semibold">Courses</h1>
-        <CoursesGrid />
-      </div>
-    </Protected>
+    <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-12">
+      <h1 className="mb-6 text-2xl font-semibold">Courses</h1>
+      <CoursesGrid />
+    </div>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { SearchIcon } from "lucide-react";
-import { toast } from "sonner";
 
 import {
   EmptyState,
@@ -13,19 +13,18 @@ import {
   TableSkeleton,
   TruncatedNotice,
 } from "@/components/admin/admin-ui";
-import { DecisionActions, type Decision } from "@/components/admin/decision-actions";
+import { TeacherApplicationActions } from "@/components/admin/teacher-application-actions";
 import { PaginationControls } from "@/components/pagination-controls";
 import { ApplicationStatusBadge } from "@/components/status-badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { api, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
-import type { CourseApplicationStatus, TeacherApplication } from "@/lib/types";
+import type { TeacherApplication, TeacherApplicationStatus } from "@/lib/types";
 import { paginateLocally, useAllPages } from "@/lib/use-all-pages";
 
-type StatusFilter = CourseApplicationStatus | "all";
-const STATUSES: CourseApplicationStatus[] = ["pending", "reviewing", "accepted", "rejected"];
+type StatusFilter = TeacherApplicationStatus | "all";
+const STATUSES: TeacherApplicationStatus[] = ["pending", "reviewing", "interview", "accepted", "rejected"];
 
 function TeacherApplicationsManager() {
   const { items, setItems, total, truncated, loading, error, reload } =
@@ -34,20 +33,8 @@ function TeacherApplicationsManager() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
   const [page, setPage] = useState(1);
 
-  async function decide(application: TeacherApplication, decision: Decision): Promise<boolean> {
-    try {
-      const updated = await api.post<TeacherApplication>(`/teacher-applications/${application.id}/${decision}`);
-      setItems((current) => current?.map((entry) => (entry.id === application.id ? updated : entry)) ?? null);
-      toast.success(
-        decision === "accept"
-          ? `Accepted — ${application.name} now has the teacher role.`
-          : `Rejected ${application.name}'s application.`
-      );
-      return true;
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : `Could not ${decision} this application.`);
-      return false;
-    }
+  function replace(updated: TeacherApplication) {
+    setItems((current) => current?.map((entry) => (entry.id === updated.id ? updated : entry)) ?? null);
   }
 
   const query = search.trim().toLowerCase();
@@ -72,7 +59,7 @@ function TeacherApplicationsManager() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Teacher applications"
-        description="Accepting creates (or restores) the applicant's account and grants the teacher role."
+        description="Applications move from pending to reviewing to interview, then accepted or rejected. Accepting creates (or restores) the applicant's account and grants the teacher role."
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -122,7 +109,7 @@ function TeacherApplicationsManager() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Applicant</TableHead>
-                  <TableHead>Qualifications</TableHead>
+                  <TableHead>Teaches</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Applied</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -132,58 +119,26 @@ function TeacherApplicationsManager() {
                 {pageItems.map((application) => (
                   <TableRow key={application.id}>
                     <TableCell>
-                      <p className="font-medium text-foreground">{application.name}</p>
+                      <Link
+                        href={`/admin/teacher-applications/${application.id}`}
+                        className="font-medium text-foreground underline-offset-4 hover:underline"
+                      >
+                        {application.name}
+                      </Link>
                       <p className="text-xs text-muted-foreground">
                         {application.email}
-                        {application.phone && <> &middot; {application.phone}</>}
+                        {application.phone && <> &middot; {application.phone_display ?? application.phone}</>}
                       </p>
                     </TableCell>
-                    <TableCell className="max-w-64 whitespace-normal">
-                      {application.qualifications ? (
-                        <p className="line-clamp-2 text-muted-foreground" title={application.qualifications}>
-                          {application.qualifications}
-                        </p>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                      {application.cv_path && (
-                        <a
-                          href={application.cv_path}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary underline-offset-4 hover:underline"
-                        >
-                          View CV
-                        </a>
-                      )}
+                    <TableCell className="max-w-64 whitespace-normal text-muted-foreground">
+                      {application.category_names?.length ? application.category_names.join(", ") : "—"}
                     </TableCell>
                     <TableCell>
                       <ApplicationStatusBadge status={application.status} />
                     </TableCell>
                     <TableCell className="text-muted-foreground">{formatDateTime(application.created_at)}</TableCell>
                     <TableCell>
-                      <DecisionActions
-                        status={application.status}
-                        subject={`${application.name}'s application`}
-                        acceptDescription={
-                          <>
-                            {application.email} will get the teacher role. If no account exists for that email, one is
-                            created with a random password and <strong>no email is sent</strong>, so they&apos;ll need
-                            their password set before they can sign in.
-                          </>
-                        }
-                        rejectDescription={
-                          application.status === "accepted" ? (
-                            <>
-                              The application will be marked rejected. Their account and teacher role are{" "}
-                              <strong>not</strong> removed — revoke the role from Users if needed.
-                            </>
-                          ) : (
-                            <>The application will be marked rejected. The applicant is not notified automatically.</>
-                          )
-                        }
-                        onDecide={(decision) => decide(application, decision)}
-                      />
+                      <TeacherApplicationActions application={application} onChanged={replace} />
                     </TableCell>
                   </TableRow>
                 ))}
